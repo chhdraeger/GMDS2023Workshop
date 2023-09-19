@@ -182,9 +182,10 @@ https://more.metadatacenter.org/tools-training/cedar-api#userfacingapi
 config <- read_yaml("input/config.yml")
 
 # select metadata instance by ID
-#template_instence_id <- "e9110226-7fcf-4dba-a698-cf686743b24b"
-template_instence_id <- "4e297825-9c12-41b8-8d97-d783bfb3686e"
-
+# pjt6 template
+#template_instance_id <- "4e297825-9c12-41b8-8d97-d783bfb3686e"
+# workshop template
+template_instance_id <- "853bc707-c67d-49fe-998a-d373fb2b9287"
 
 tmp <- tempfile()
 if(!dir.exists("tmp")){dir.create("tmp")}
@@ -195,7 +196,7 @@ cedar_req <- cedar_req %>%
           req_headers("Accept" = "application/json") %>% 
           req_headers("Authorization" = paste0("apiKey ",config$apiKey)) %>% 
           req_retry(max_tries = 5) %>% 
-          req_url_path_append(paste0("template-instances/https%3A%2F%2Frepo.metadatacenter.org%2Ftemplate-instances%2F",template_instence_id)) 
+          req_url_path_append(paste0("template-instances/https%3A%2F%2Frepo.metadatacenter.org%2Ftemplate-instances%2F",template_instance_id)) 
 
 # dry run
 #cedar_req %>% req_dry_run()
@@ -208,8 +209,8 @@ tmp <- cedar_resp %>% resp_body_json()
 write_json(tmp,"tmp/get.json")
 
 # #get limits from tmp
-# tmp$NTproBNP$Range$`Lower Limit`
-# tmp$NTproBNP$Range$`Upper Limit`
+tmp$NTproBNP$Range$`Lower Limit`
+tmp$NTproBNP$Range$`Upper Limit`
 
 # update dataquieR metadata
 metadata_report$SOFT_LIMITS[3]<- paste0("[",tmp$NTproBNP$Range$`Lower Limit`,";",tmp$NTproBNP$Range$`Upper Limit`,"]")
