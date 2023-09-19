@@ -11,6 +11,7 @@ https://dataquality.qihs.uni-greifswald.de/IntroductoryTutorial.html
 https://more.metadatacenter.org/tools-training/orientation
 ### Get API KEY
 https://github.com/metadatacenter/cedar-docs/wiki/CEDAR-REST-APIs#getting-a-cedar-api-key
+Then add your API KEY to 'input/config.YML'
 ### CEDAR Template (registration required)
 https://openview.metadatacenter.org/templates/https:%2F%2Frepo.metadatacenter.org%2Ftemplates%2Fecf2c47d-3246-434c-bdcd-f0df34605eeb
 ### CEDAR Metadata (OpenView example)
