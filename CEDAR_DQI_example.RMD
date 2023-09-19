@@ -131,6 +131,7 @@ checks_report <- read.csv("input\\contradictions.csv")
 analysis with dataquieR
 
 contradiction checks
+https://dataquality.qihs.uni-greifswald.de/VIN_con_impl_contradictions.html
 ```{r,warning=FALSE}
 # full dq report as html
 # dq_report is deprecated, use dq_report2
@@ -162,7 +163,8 @@ outliers <- acc_univariate_outlier(study_data     = cohort_synt_DQ,
 outliers$SummaryPlotList$ntprobnp
 ```
 
-run limit checks 
+run limit checks
+https://dataquality.qihs.uni-greifswald.de/VIN_DQ-report-SHIP-example.html
 ```{r,warning=FALSE}
 limit_checks <- con_limit_deviations(study_data      = cohort_synt_DQ,
                                         meta_data       = metadata_report,
@@ -173,6 +175,7 @@ limit_checks$SummaryPlotList$ntprobnp
 ```
 
 get new metadata from CEDAR
+https://more.metadatacenter.org/tools-training/cedar-api#userfacingapi
 ```{r}
 # read config with API KEY
 # see readme.MD on how to find your API KEY
