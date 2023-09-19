@@ -1,0 +1,229 @@
+Demo Script for GMDS2023 Workshop
+
+```{r, echo=FALSE,results=FALSE, warning=FALSE}
+# libraries DQ
+library(dataquieR)
+library(tibble)
+library(tidyverse)
+library(dplyr)
+library(data.table)
+library(lubridate)
+library(dataquieR)
+library(markdown)
+
+# libraries CEDAR
+library(httr2)
+library(httpuv)
+library(yaml)
+library(jsonlite)
+
+# dashboard
+library(flexsiteboard)
+library(flexdashboard)
+library(DT)
+
+# report
+library(rmarkdown)
+```
+
+generate test data
+according to github csv schema for VHF use case
+see https://github.com/medizininformatik-initiative/Projectathon6-smith2 readme for description
+```{r}
+
+### build test data functions ###
+
+# function for random dates
+# source https://stackoverflow.com/questions/21502332/generating-random-dates
+rdate <- function(x,
+                  min = paste0(format(Sys.Date(), '%Y'), '-01-01'),
+                  max = paste0(format(Sys.Date(), '%Y'), '-12-31'),
+                  sort = TRUE) {
+  dates <- sample(seq(as.Date(min), as.Date(max), by = "day"), x, replace = TRUE)
+  if (sort == TRUE) {
+    sort(dates)
+  } else {
+    dates
+  }
+}
+
+### cohort ###
+
+# generate empty df
+cohort_synt <- data.frame(subject=character(),
+                 NTproBNP.date=as.Date(character()), 
+                 NTproBNP.value=double(),
+                 NTproBNP.unit=character(),
+                 NTproBNP.unitSystem=character(),
+                 gender=character(),
+                 birthdate=as.Date(character()),
+                 encounter.id=character(),
+                 encounter.start=as.Date(character()),
+                 encounter.end=as.Date(character()),
+                 serviceType=character(),
+                 stringsAsFactors=FALSE) 
+
+# generate synthetic data, assuming ntproBNP normally distributed
+cohort_synt <- data.frame(subject = as.character(seq(1000,5999)),
+                 NTproBNP.date = rdate(5000, min = "2019-01-01", max = "2021-12-31",sort = FALSE), 
+                 NTproBNP.value = rnorm(5000, mean = 5000, sd = 1000),
+                 NTproBNP.unit = rep("pg/mL",5000),
+                 NTproBNP.unitSystem = rep("http://unitsofmeasure.org",5000),
+                 gender = sample(c("male","female","other"), prob = c(0.475,0.475,0.05), size = 5000, replace = TRUE),
+                 birthdate = rdate(5000, min = "1960-01-01", max = "1990-12-31", sort = FALSE),
+                 encounter.id = as.character(seq(91000,95999)),
+                 encounter.start = rdate(5000, min = "2019-01-01", max = "2020-12-31",sort = FALSE),
+                 encounter.end = rdate(5000, min = "2020-01-01", max = "2021-12-31",sort = FALSE),
+                 serviceType = rep("unknown",5000))
+
+# #check dist, limits 1.5k 8.5k for 99th quantile
+# quantile(cohort_synt_DQ$NTproBNP.value, probs = c(0.01,0.99))
+# hist(cohort_synt$NTproBNP.value)
+
+# add outliers
+outliers_ID <- sample(seq(0,4999), size = 50, replace = TRUE)
+cohort_synt[outliers_ID,]$NTproBNP.value <- runif(1,10000,12000)
+
+#check dist, limits 30 10k 
+#hist(cohort_synt$NTproBNP.value)
+
+#cohort_synt
+```
+
+transform cohort to dataquieR format
+```{r}
+
+cohort_synt_DQ <- cohort_synt
+
+# calculate age
+cohort_synt_DQ$birthdate <- trunc((cohort_synt_DQ$birthdate %--% Sys.Date()) / years(1))  
+# rename cols and fix type
+cohort_synt_DQ <- rename(cohort_synt_DQ, age = birthdate)
+cohort_synt_DQ$age <- as.numeric(cohort_synt_DQ$age)
+
+# apply levels
+cohort_synt_DQ$NTproBNP.unit <- gsub("pg/mL","1",cohort_synt_DQ$NTproBNP.unit)
+cohort_synt_DQ$NTproBNP.unit <- as.numeric(cohort_synt_DQ$NTproBNP.unit)
+cohort_synt_DQ$NTproBNP.unitSystem <- gsub("http://unitsofmeasure.org","1",cohort_synt_DQ$NTproBNP.unitSystem)
+cohort_synt_DQ$NTproBNP.unitSystem <- as.numeric(cohort_synt_DQ$NTproBNP.unitSystem)
+cohort_synt_DQ$gender <- gsub("female","2",cohort_synt_DQ$gender)
+cohort_synt_DQ$gender <- gsub("male","1",cohort_synt_DQ$gender) 
+cohort_synt_DQ$gender <- gsub("other","3",cohort_synt_DQ$gender)
+cohort_synt_DQ$gender <- as.numeric(cohort_synt_DQ$gender)
+cohort_synt_DQ$serviceType <- gsub("unknown","1",cohort_synt_DQ$serviceType)
+cohort_synt_DQ$serviceType <- as.numeric(cohort_synt_DQ$serviceType)
+
+#fix typing
+cohort_synt_DQ$subject <- as.numeric(cohort_synt_DQ$subject)
+cohort_synt_DQ$encounter.id <- as.numeric(cohort_synt_DQ$encounter.id)
+
+#cohort_synt_DQ
+```
+
+read dataquieR conform metadata, from .csv
+```{r}
+
+metadata_report <- read.csv("input\\metadata.csv")
+checks_report <- read.csv("input\\contradictions.csv")
+
+```
+
+analysis with dataquieR
+
+contradiction checks
+```{r,warning=FALSE}
+# full dq report as html
+# dq_report is deprecated, use dq_report2
+# my_dq_report <- dq_report(study_data = cohort_synt_DQ, #sd1
+#                           meta_data  = metadata_report,#md1
+#                           check_table = checks_report,
+#                           label_col  = LABEL)
+# 
+# # show results
+# my_dq_report
+
+# contradiction checks
+AnyContradictions <- con_contradictions(study_data      = cohort_synt_DQ,
+                                        meta_data       = metadata_report,
+                                        label_col       = "LABEL",
+                                        check_table     = checks_report,
+                                        threshold_value = 1)
+
+AnyContradictions$SummaryPlot
+```
+
+outlier detection
+https://dataquality.qihs.uni-greifswald.de/VIN_acc_impl_robust_univariate_outlier.html
+```{r,warning=FALSE}
+outliers <- acc_univariate_outlier(study_data     = cohort_synt_DQ,
+                                  meta_data       = metadata_report,
+                                  label_col       = "LABEL")
+
+outliers$SummaryPlotList$ntprobnp
+```
+
+run limit checks 
+```{r,warning=FALSE}
+limit_checks <- con_limit_deviations(study_data      = cohort_synt_DQ,
+                                        meta_data       = metadata_report,
+                                        label_col       = "LABEL",
+                                        limits = "SOFT_LIMITS")
+
+limit_checks$SummaryPlotList$ntprobnp
+```
+
+get new metadata from CEDAR
+```{r}
+# read config with API KEY
+# see readme.MD on how to find your API KEY
+config <- read_yaml("input/config.yml")
+
+# select metadata instance by ID
+#template_instence_id <- "e9110226-7fcf-4dba-a698-cf686743b24b"
+template_instence_id <- "4e297825-9c12-41b8-8d97-d783bfb3686e"
+
+
+tmp <- tempfile()
+if(!dir.exists("tmp")){dir.create("tmp")}
+
+# GET request to CEDAR with httr2
+cedar_req <- request("https://resource.metadatacenter.org/") 
+cedar_req <- cedar_req %>% 
+          req_headers("Accept" = "application/json") %>% 
+          req_headers("Authorization" = paste0("apiKey ",config$apiKey)) %>% 
+          req_retry(max_tries = 5) %>% 
+          req_url_path_append(paste0("template-instances/https%3A%2F%2Frepo.metadatacenter.org%2Ftemplate-instances%2F",template_instence_id)) 
+
+# dry run
+#cedar_req %>% req_dry_run()
+
+# send get request
+cedar_resp <- req_perform(cedar_req)
+tmp <- cedar_resp %>% resp_body_json()
+
+# save 
+write_json(tmp,"tmp/get.json")
+
+# #get limits from tmp
+# tmp$NTproBNP$Range$`Lower Limit`
+# tmp$NTproBNP$Range$`Upper Limit`
+
+# update dataquieR metadata
+metadata_report$SOFT_LIMITS[3]<- paste0("[",tmp$NTproBNP$Range$`Lower Limit`,";",tmp$NTproBNP$Range$`Upper Limit`,"]")
+```
+
+run limit checks again
+```{r,warning=FALSE}
+limit_checks <- con_limit_deviations(study_data      = cohort_synt_DQ,
+                                        meta_data       = metadata_report,
+                                        label_col       = "LABEL",
+                                        limits = "SOFT_LIMITS")
+
+limit_checks$SummaryPlotList$ntprobnp
+```
+
+export generated data
+```{r}
+if(!dir.exists("output")){dir.create("output")}
+write.csv(cohort_synt,"output\\cohort_synt.csv", row.names = FALSE)
+```
